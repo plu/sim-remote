@@ -1,0 +1,122 @@
+# sim-remote
+
+Stream a booted iOS simulator to the browser and drive it with real touch input —
+so teammates without a Mac can poke at a build.
+
+- 30fps H264 video at full resolution, ~118 KB/s per viewer
+- 2–3ms input latency (tap, drag, scroll, long-press, keyboard, hardware buttons, rotation)
+- Many viewers, one driver at a time
+
+## Requirements
+
+- macOS 15+, Xcode 26+
+- `idb_companion`:
+  ```bash
+  brew tap facebook/fb
+  brew install idb-companion
+  ```
+- Node 26 (pinned in `mise.toml`)
+- A browser with WebCodecs: Chrome, Edge, Firefox 130+, or Safari 16.4+
+
+## Run
+
+Boot a simulator first (Xcode, or `xcrun simctl boot <udid>`), then:
+
+```bash
+npm install
+npm run build:client
+npm run dev
+```
+
+The server prints a URL containing a generated token:
+
+```
+sim-remote listening on http://0.0.0.0:8080/?token=ab12…
+```
+
+Open it, and share it with teammates on the same network. The token is exchanged
+for an `HttpOnly` session cookie on first load, so later URLs stay clean.
+
+### Options
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--host` | `0.0.0.0` | Bind address. Use `127.0.0.1` for local-only. |
+| `--port` | `8080` | Port. |
+| `--token` | generated | Fix the token instead of generating one. |
+| `--no-auth` | off | Disable auth entirely. |
+
+`--no-auth` means anyone who can reach the port can drive your simulator. On a
+shared network, leave auth on.
+
+## Control model
+
+One person drives; everyone else watches.
+
+- If nobody is driving, the first person to touch the screen takes control.
+- If someone *is* driving, others see "Alice is driving · Take control".
+  Clicking transfers control immediately — no approval, no waiting.
+- Disconnecting releases control.
+
+If control changes while the outgoing driver is mid-gesture, the server lifts
+their finger first, so the simulator is never left with a stuck touch.
+
+## Input
+
+| Interaction | How |
+|---|---|
+| Tap, drag, scroll, long-press | Mouse or touch on the canvas |
+| Pinch | Trackpad pinch (or two fingers on a touchscreen) |
+| Typing | Just type — keystrokes go to the focused field |
+| Home / Lock / Siri | Buttons above the screen |
+| Rotate | Rotate button, cycling through four orientations |
+
+## Development
+
+```bash
+npm test          # unit tests, no simulator needed
+npm run test:live # integration tests, needs a booted simulator
+npm run typecheck
+```
+
+Live tests assert through the accessibility tree rather than screenshot diffs:
+springboard gestures animate and settle back to a pixel-identical screen, so
+image hashing produces false negatives.
+
+## How it works
+
+```
+Browser  ──WS /video──  H264 NAL units  ──►  WebCodecs ──► canvas
+         ──WS /ws─────  JSON input      ──►  arbiter   ──► HID stream
+                                  │
+                              Node server
+                                  │ gRPC over unix socket
+                            idb_companion ──► Simulator
+```
+
+One companion, one HID stream and one video stream per simulator, regardless of
+viewer count — so extra viewers cost bandwidth, not simulator load. A joining
+viewer is immediately sent the cached SPS/PPS and most recent keyframe, so it
+paints right away instead of waiting up to a second.
+
+Note that HID coordinates are in **points**, not pixels (`describe()` reports
+pixels plus a density factor).
+
+## Why idb rather than axe
+
+This started as a wrapper around [axe](https://github.com/cameroncooke/axe).
+Measured on an iPhone 17 Pro simulator:
+
+| | axe 1.8.0 | idb 1.5.7 |
+|---|---|---|
+| Tap latency | ~1080 ms | **2–3 ms** |
+| Video | MJPEG 6.7fps @ 0.5 scale | H264 **30.5fps** @ 1.0 scale |
+| Bandwidth | ~850 KB/s | **118 KB/s** |
+
+The difference is structural: axe is a CLI for one-shot automation, reloading
+private frameworks and re-running an orientation probe on every invocation
+(~0.8–1.0s per step, even inside a single `batch`), and `batch --stdin` buffers
+until EOF so there is no persistent-session workaround. idb's companion is a
+long-lived daemon holding an open HID stream.
+
+See `docs/superpowers/specs/` for the full design.

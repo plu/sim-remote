@@ -59,3 +59,19 @@ test('builds an avc1 codec string from SPS profile/constraints/level', () => {
 test('codecStringFromSps rejects a too-short SPS', () => {
   expect(() => codecStringFromSps(u8(0x67, 0x42))).toThrow();
 });
+
+test('splitting is lossless: every input byte is preserved', () => {
+  const s = new NaluSplitter();
+  const units = [[0x67, 1, 2, 3], [0x68, 4], [0x65, 5, 6, 7, 8], [0x41, 9]];
+  const stream: number[] = [];
+  for (const u of units) stream.push(0, 0, 0, 1, ...u);
+
+  // Feed in awkward 3-byte slices to force splits mid-start-code.
+  const got: Uint8Array[] = [];
+  for (let i = 0; i < stream.length; i += 3) {
+    got.push(...s.push(new Uint8Array(stream.slice(i, i + 3))));
+  }
+  got.push(...s.flush());
+
+  expect(got.map((u) => Array.from(u))).toEqual(units);
+});
