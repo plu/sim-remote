@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>sim-remote</title>
+  <style>
+    :root { color-scheme: dark; --bg:#111; --fg:#eee; --accent:#3b82f6; }
+    body { margin:0; background:var(--bg); color:var(--fg);
+           font:14px/1.4 system-ui,-apple-system,sans-serif; display:flex;
+           flex-direction:column; align-items:center; gap:12px; padding:16px; }
+    header { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    #screen { background:#000; border-radius:28px; touch-action:none; max-height:78vh;
+              box-shadow:0 8px 40px rgba(0,0,0,.6); }
+    #screen.viewonly { cursor:not-allowed; }
+    .btn { background:#222; color:var(--fg); border:1px solid #444; border-radius:8px;
+           padding:6px 12px; cursor:pointer; font:inherit; }
+    .btn:hover { border-color:var(--accent); }
+    #badge { padding:5px 12px; border-radius:999px; background:#222; white-space:nowrap; }
+    #badge.driving { background:var(--accent); color:#fff; }
+    #toast { position:fixed; bottom:24px; background:#222; padding:10px 16px;
+             border-radius:8px; opacity:0; transition:opacity .3s; pointer-events:none;
+             border:1px solid #444; }
+    #toast.show { opacity:1; }
+  </style>
+</head>
+<body>
+  <header>
+    <select id="sims" class="btn"></select>
+    <span id="badge">connecting…</span>
+    <button id="take" class="btn" hidden>Take control</button>
+    <button class="btn" data-button="HOME">Home</button>
+    <button class="btn" data-button="LOCK">Lock</button>
+    <button class="btn" data-button="SIRI">Siri</button>
+    <button class="btn" id="rotate">Rotate</button>
+  </header>
+  <canvas id="screen"></canvas>
+  <div id="toast"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
