@@ -11,7 +11,7 @@ function fakeClient() {
     openHid: () => ({
       touch: (p: string, x: number, y: number) => calls.push(`touch:${p}:${x},${y}`),
       button: (b: string) => calls.push(`button:${b}`),
-      key: (c: number) => calls.push(`key:${c}`),
+      key: (c: number, shift?: boolean) => calls.push(`key:${c}${shift ? '+shift' : ''}`),
       pinch: () => calls.push('pinch'),
       orientation: (o: string) => calls.push(`orientation:${o}`),
       end: () => calls.push('end'),
@@ -139,4 +139,28 @@ test('renaming a viewer is reflected in the control broadcast', async () => {
   hub.handle('alice', { type: 'setName', name: 'Alice' });
   const last = [...a.msgs].reverse().find((m) => m.type === 'control');
   expect(last && last.type === 'control' && last.controllerName).toBe('Alice');
+});
+
+test('text is sent as HID usage codes, not ASCII code points', async () => {
+  const c = fakeClient();
+  const hub = await open(c);
+  hub.addViewer(viewer('alice'));
+  hub.handle('alice', { type: 'text', text: 'az' });
+  expect(c.calls).toEqual(['key:4', 'key:29']);          // not 97 / 122
+});
+
+test('uppercase and shifted symbols carry a shift modifier', async () => {
+  const c = fakeClient();
+  const hub = await open(c);
+  hub.addViewer(viewer('alice'));
+  hub.handle('alice', { type: 'text', text: 'A?' });
+  expect(c.calls).toEqual(['key:4+shift', 'key:56+shift']);
+});
+
+test('unmappable characters are skipped rather than sent as a wrong key', async () => {
+  const c = fakeClient();
+  const hub = await open(c);
+  hub.addViewer(viewer('alice'));
+  hub.handle('alice', { type: 'text', text: 'aéb' });
+  expect(c.calls).toEqual(['key:4', 'key:5']);
 });

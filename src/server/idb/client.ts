@@ -6,6 +6,7 @@ import type {
   HardwareButton, Orientation, ScreenPoints, TouchPhase,
 } from '../../shared/protocol.ts';
 import { pixelsToPoints } from '../../shared/coords.ts';
+import { HID_LEFT_SHIFT } from '../../shared/keymap.ts';
 
 const PROTO = join(dirname(fileURLToPath(import.meta.url)), '../../../proto/idb.proto');
 
@@ -21,7 +22,7 @@ const press = (action: unknown, direction: 'DOWN' | 'UP') => ({ press: { action,
 export interface HidStream {
   touch(phase: TouchPhase, x: number, y: number): void;
   button(b: HardwareButton): void;
-  key(code: number): void;
+  key(code: number, shift?: boolean): void;
   pinch(x: number, y: number, scale: number, duration: number): void;
   orientation(o: Orientation): void;
   end(): void;
@@ -63,7 +64,14 @@ export class IdbClient {
       touch: (phase, x, y) =>
         w(press({ touch: { point: point(x, y) } }, phase === 'up' ? 'UP' : 'DOWN')),
       button: (b) => { w(press({ button: { button: b } }, 'DOWN')); w(press({ button: { button: b } }, 'UP')); },
-      key: (code) => { w(press({ key: { keycode: code } }, 'DOWN')); w(press({ key: { keycode: code } }, 'UP')); },
+      key: (code, shift = false) => {
+        const k = { key: { keycode: code } };
+        const sh = { key: { keycode: HID_LEFT_SHIFT } };
+        if (shift) w(press(sh, 'DOWN'));
+        w(press(k, 'DOWN'));
+        w(press(k, 'UP'));
+        if (shift) w(press(sh, 'UP'));
+      },
       pinch: (x, y, scale, duration) => w({ pinch: { center: point(x, y), scale, duration, radius: 100 } }),
       orientation: (o) => w({ orientation: { orientation: o } }),
       end: () => { try { call.end(); } catch { /* already closed */ } },

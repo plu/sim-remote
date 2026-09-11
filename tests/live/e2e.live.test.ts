@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -58,6 +59,71 @@ async function openClient() {
   };
 }
 
+
+interface AxNode {
+  AXLabel?: string | null;
+  traits?: string[];
+  frame?: { x: number; y: number; width: number; height: number };
+  children?: AxNode[];
+}
+
+/** Walk the accessibility tree. Regexing it is unsafe: the JSON key order
+ *  varies between reads, so "AXLabel before frame" does not always hold. */
+function findNode(nodes: AxNode[], pred: (n: AxNode) => boolean): AxNode | null {
+  for (const n of nodes) {
+    if (pred(n)) return n;
+    const hit = n.children ? findNode(n.children, pred) : null;
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function centreOf(tree: string, label: string): { x: number; y: number } {
+  const node = findNode(JSON.parse(tree) as AxNode[],
+    (n) => n.AXLabel === label && (n.traits?.includes('LaunchIcon') ?? false));
+  if (!node?.frame) throw new Error(`no launch icon labelled "${label}" on screen`);
+  const f = node.frame;
+  return { x: Math.round(f.x + f.width / 2), y: Math.round(f.y + f.height / 2) };
+}
+
+/** The server spawns a companion lazily, on the first websocket connection, so
+ *  its socket does not exist until then. Call this only AFTER openClient(). */
+async function connectAx(): Promise<IdbClient> {
+  const path = join(tmpdir(), 'sim-remote', `${udid}.sock`);
+  const started = Date.now();
+  while (!existsSync(path)) {
+    if (Date.now() - started > 30_000) throw new Error('companion socket never appeared');
+    await sleep(250);
+  }
+  return IdbClient.connect(path);
+}
+
+/** Poll the accessibility tree instead of sleeping a fixed amount: the
+ *  simulator's starting state and animation timing both vary between runs. */
+async function waitForTree(
+  pred: (t: string) => boolean, label: string, timeoutMs = 20_000,
+): Promise<string> {
+  const started = Date.now();
+  let last = '';
+  while (Date.now() - started < timeoutMs) {
+    last = await ax.accessibilityInfo();
+    if (pred(last)) return last;
+    await sleep(500);
+  }
+  throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`);
+}
+
+/** Return to the home screen and let the transition finish.
+ *  The settle delay is load-bearing: waiting only on a tree condition returns
+ *  instantly when the condition is already true, and a gesture sent into a
+ *  running transition animation is swallowed. */
+async function goHome(c: { send: (m: ClientMsg) => void }): Promise<void> {
+  c.send({ type: 'button', button: 'HOME' });
+  await sleep(2000);
+  await waitForTree((t) => t.includes('"AXLabel":"Settings"'), 'the home screen');
+  await sleep(800);
+}
+
 test('unauthenticated websocket upgrades are rejected', async () => {
   const ws = new WebSocket(`${base}/ws/${udid}?cid=nope`);
   const failed = await new Promise<boolean>((resolve) => {
@@ -101,26 +167,24 @@ test('claim-by-interaction makes the first toucher the controller', async () => 
 }, 60_000);
 
 test('a streamed drag through the websocket scrolls a real list', async () => {
-  ax = IdbClient.connect(join(tmpdir(), 'sim-remote', `${udid}.sock`));
-  const { screen } = await ax.describe();
   const c = await openClient();
-  await sleep(3000);
+  ax ??= await connectAx();
+  const { screen } = await ax.describe();
 
-  c.send({ type: 'button', button: 'HOME' });
-  await sleep(2500);
+  await goHome(c);
 
   // Open Settings by tapping its accessibility frame centre.
-  const tree = await ax.accessibilityInfo();
-  const m = /"AXLabel"\s*:\s*"Settings"[\s\S]{0,400}?"frame"\s*:\s*\{([^}]*)\}/.exec(tree);
-  if (!m) throw new Error('Settings icon not found on the home screen');
-  const f = JSON.parse(`{${m[1]!}}`) as { x: number; y: number; width: number; height: number };
-  const tapX = Math.round(f.x + f.width / 2);
-  const tapY = Math.round(f.y + f.height / 2);
+  const { x: tapX, y: tapY } = centreOf(await ax.accessibilityInfo(), 'Settings');
+  // A down/up pair sent back-to-back is a zero-duration touch, which iOS does
+  // not reliably treat as a tap. Hold briefly, as a finger would.
   c.send({ type: 'touch', phase: 'down', x: tapX, y: tapY });
+  await sleep(80);
   c.send({ type: 'touch', phase: 'up', x: tapX, y: tapY });
-  await sleep(3500);
-
-  const before = await ax.accessibilityInfo();
+  // Wait for "left the home screen" rather than for a specific row: iOS
+  // restores Settings' previous scroll position, so named rows may be off-screen.
+  const before = await waitForTree(
+    (t) => !t.includes('spotlight-pill'), 'Settings to open');
+  await sleep(800);
   const x = Math.round(screen.width / 2);
   const startY = Math.round(screen.height * 0.75);
   c.send({ type: 'touch', phase: 'down', x, y: startY });
@@ -133,5 +197,31 @@ test('a streamed drag through the websocket scrolls a real list', async () => {
 
   const after = await ax.accessibilityInfo();
   expect(after).not.toEqual(before);
+  c.close();
+}, 90_000);
+
+test('typed text arrives as the right characters, not ASCII-as-usage-codes', async () => {
+  const c = await openClient();
+  ax ??= await connectAx();
+  const { screen } = await ax.describe();
+
+  // Open Spotlight: swipe down from the middle of the home screen.
+  await goHome(c);
+  const x = Math.round(screen.width / 2);
+  const y0 = Math.round(screen.height * 0.35);
+  c.send({ type: 'touch', phase: 'down', x, y: y0 });
+  for (let i = 1; i <= 20; i++) {
+    c.send({ type: 'touch', phase: 'move', x, y: y0 + i * 12 });
+    await sleep(12);
+  }
+  c.send({ type: 'touch', phase: 'up', x, y: y0 + 240 });
+  await sleep(2500);
+
+  const typed = 'Hi?';
+  for (const ch of typed) { c.send({ type: 'text', text: ch }); await sleep(250); }
+  await sleep(2500);
+
+  const tree = await ax.accessibilityInfo();
+  expect(tree).toContain(typed);        // 'Hi?' — uppercase and a shifted symbol
   c.close();
 }, 90_000);

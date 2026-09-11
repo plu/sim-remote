@@ -2,6 +2,7 @@ import type { ClientMsg, ScreenPoints, ServerMsg } from '../../shared/protocol.t
 import type { HidStream, IdbClient, VideoHandle } from '../idb/client.ts';
 import { NaluSplitter, nalType, isKeyframe, NAL_SPS, NAL_PPS } from '../video/nalu.ts';
 import { ControlArbiter } from './arbiter.ts';
+import { charToHid } from '../../shared/keymap.ts';
 
 export interface Viewer {
   id: string;
@@ -107,7 +108,12 @@ export class SessionHub {
         break;
       case 'button': this.#hid.button(msg.button); break;
       case 'key': this.#hid.key(msg.keycode); break;
-      case 'text': for (const ch of msg.text) this.#hid.key(ch.charCodeAt(0)); break;
+      case 'text':
+        for (const ch of msg.text) {
+          const k = charToHid(ch);
+          if (k) this.#hid.key(k.code, k.shift);   // skip rather than send a wrong key
+        }
+        break;
       case 'orientation': this.#hid.orientation(msg.orientation); break;
       case 'pinch': this.#hid.pinch(msg.x, msg.y, msg.scale, msg.duration); break;
     }
