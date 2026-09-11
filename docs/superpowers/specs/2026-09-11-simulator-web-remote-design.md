@@ -232,7 +232,7 @@ framework: the UI is one canvas and a handful of buttons.
 3. **Input** — tap, drag, long-press, keyboard, hardware buttons, rotation.
 4. **Multi-viewer** — fan-out, control arbiter, token auth, reconnection.
 
-## Open item
+## Naming
 
-The repository is named `axe-web`, which is now a misnomer since the design uses
-idb. Worth renaming before the first implementation commit.
+The repository was renamed from `axe-web` to `sim-remote` before implementation,
+since the design uses idb rather than axe.
