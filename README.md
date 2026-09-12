@@ -7,6 +7,11 @@ so teammates without a Mac can poke at a build.
 - 2–3ms input latency (tap, drag, scroll, long-press, keyboard, hardware buttons, rotation)
 - Many viewers, one driver at a time
 
+![Dropping a build onto the page installs and launches it, then it is driven from the browser](docs/demo.gif)
+
+*Dropping a zipped build onto the page installs and launches it, then the app is
+driven straight from the browser. ([full recording](docs/demo.mp4))*
+
 ## Requirements
 
 - macOS 15+, Xcode 26+

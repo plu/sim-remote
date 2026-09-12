@@ -3,6 +3,3 @@ dist/
 *.log
 .sim-remote/
 
-# Demo recordings show an internal build; kept local, not published.
-docs/demo.gif
-docs/demo.mp4
