@@ -12,6 +12,8 @@ const PORT = 8131;
 const TOKEN = 'testtoken';
 const CID = 'e2e-client';
 const base = `ws://127.0.0.1:${PORT}`;
+/** Must match what the server prints on startup. */
+const READY = 'sim-remote ready';
 
 let server: ChildProcess;
 let udid: string;
@@ -27,7 +29,7 @@ beforeAll(async () => {
   await new Promise<void>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('server did not start')), 30_000);
     server.stdout?.on('data', (d: Buffer) => {
-      if (d.toString().includes('listening')) { clearTimeout(t); resolve(); }
+      if (d.toString().includes(READY)) { clearTimeout(t); resolve(); }
     });
     server.on('error', reject);
   });
@@ -176,20 +178,16 @@ test('a streamed drag through the websocket scrolls a real list', async () => {
   ax ??= await connectAx();
   const { screen } = await ax.describe();
 
-  await goHome(c);
-
-  // Open Settings by tapping its accessibility frame centre.
-  const { x: tapX, y: tapY } = centreOf(await ax.accessibilityInfo(), 'Settings');
-  // A down/up pair sent back-to-back is a zero-duration touch, which iOS does
-  // not reliably treat as a tap. Hold briefly, as a finger would.
-  c.send({ type: 'touch', phase: 'down', x: tapX, y: tapY });
-  await sleep(80);
-  c.send({ type: 'touch', phase: 'up', x: tapX, y: tapY });
-  // Wait for "left the home screen" rather than for a specific row: iOS
-  // restores Settings' previous scroll position, so named rows may be off-screen.
+  // Launch Settings by bundle id rather than tapping its icon. Tapping is what
+  // this suite exists to prove elsewhere; using it as *setup* made the test
+  // depend on icon position and launch timing, which is where it kept failing.
+  await ax.launchApp('com.apple.Preferences');
   const before = await waitForTree(
-    (t) => !t.includes('spotlight-pill'), 'Settings to open');
-  await sleep(800);
+    (t) => t.includes('"AXLabel":"General"') || t.includes('"AXLabel":"Wi-Fi"')
+        || t.includes('"AXLabel":"Privacy & Security"'),
+    'the Settings list',
+  );
+
   const x = Math.round(screen.width / 2);
   const startY = Math.round(screen.height * 0.75);
   c.send({ type: 'touch', phase: 'down', x, y: startY });
@@ -198,7 +196,7 @@ test('a streamed drag through the websocket scrolls a real list', async () => {
     await sleep(12);
   }
   c.send({ type: 'touch', phase: 'up', x, y: Math.round(startY - 30 * screen.height * 0.012) });
-  await sleep(3000);
+  await sleep(2500);
 
   const after = await ax.accessibilityInfo();
   expect(after).not.toEqual(before);

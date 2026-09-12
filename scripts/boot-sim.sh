@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Boot the newest available iPhone simulator and wait until it is usable.
-# Used by CI, where the exact device list depends on the runner image.
+# Boot the newest available iPhone simulator and wait until it can actually
+# render. Used by CI, where the device list depends on the runner image.
+#
+# Booting with `simctl boot` alone is not enough: without the Simulator UI the
+# framebuffer is never produced, so idb's video stream yields nothing and
+# accessibility returns "No translation object returned for simulator".
 set -euo pipefail
 
 UDID=$(xcrun simctl list devices available -j | python3 -c '
@@ -23,7 +27,27 @@ print(best[1])
 ')
 
 echo "Booting $UDID"
-# Already-booted is not an error.
-xcrun simctl boot "$UDID" 2>/dev/null || true
+xcrun simctl boot "$UDID" 2>/dev/null || true   # already-booted is fine
 xcrun simctl bootstatus "$UDID" -b
-xcrun simctl list devices booted
+
+# Bring up the UI so the display pipeline exists.
+open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
+
+# Readiness: a screenshot proves the framebuffer renders, which is exactly what
+# the video stream needs. Poll rather than guess at a sleep.
+shot=/tmp/sim-boot-check.png
+for i in $(seq 1 60); do
+  if xcrun simctl io "$UDID" screenshot "$shot" >/dev/null 2>&1; then
+    size=$(stat -f%z "$shot" 2>/dev/null || echo 0)
+    if [ "$size" -gt 20000 ]; then
+      echo "Simulator rendering after ${i}s (screenshot ${size} bytes)"
+      xcrun simctl list devices booted
+      exit 0
+    fi
+  fi
+  sleep 1
+done
+
+echo "Simulator booted but never produced a usable screenshot" >&2
+xcrun simctl list devices booted >&2
+exit 1
