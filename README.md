@@ -57,14 +57,29 @@ mise run dev -- --port 9000 --host 127.0.0.1
 Tasks run inside mise's environment, so Node and `idb_companion` are on `PATH`
 without needing shell activation.
 
-The server prints a URL containing a generated token:
+The server prints URLs containing a generated token:
 
 ```
-sim-remote listening on http://0.0.0.0:8080/?token=ab12…
+sim-remote ready
+
+  On this Mac:  http://localhost:8080/?token=ab12…
+
+  On your network:
+    http://192.168.1.131:8080/?token=ab12…
 ```
 
-Open it, and share it with teammates on the same network. The token is exchanged
-for an `HttpOnly` session cookie on first load, so later URLs stay clean.
+The token is exchanged for an `HttpOnly` session cookie on first load, so later
+URLs stay clean.
+
+> **Video does not play over plain `http://` from another machine.** Browsers
+> expose WebCodecs (and `crypto.randomUUID`) only in a *secure context* — https,
+> or `localhost`, which is exempt. The network URLs above will load the page and
+> then tell you exactly this. Until TLS is added, the localhost URL is the one
+> that works.
+
+Note that the bind address is not itself browsable: `0.0.0.0` means "listen on
+every interface", and pasting it into a browser gives a blank page in Safari and
+a page that never connects in Chrome. That is why the server prints real URLs.
 
 ### Options
 
