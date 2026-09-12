@@ -158,3 +158,55 @@ document.getElementById('rotate')?.addEventListener('click', () => {
 });
 
 void loadSims();
+
+
+// --- drag & drop app install -------------------------------------------------
+
+const dropEl = document.getElementById('drop')!;
+const progressEl = document.getElementById('progress')!;
+
+function setProgress(fraction: number): void {
+  progressEl.style.width = `${Math.round(fraction * 100)}%`;
+  if (fraction >= 1) setTimeout(() => { progressEl.style.width = '0'; }, 600);
+}
+
+function uploadZip(file: File): void {
+  const udid = simsEl.value;
+  if (!udid) { toast('No simulator selected'); return; }
+  if (!/\.zip$/i.test(file.name)) { toast('Drop a .zip containing an .app bundle'); return; }
+
+  toast(`Uploading ${file.name}…`);
+  // XHR rather than fetch: it reports upload progress, and these are big files.
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `/api/install/${udid}`);
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(e.loaded / e.total); };
+  xhr.onload = () => {
+    setProgress(1);
+    if (xhr.status === 200) return;   // the server toasts success to everyone
+    let msg = xhr.responseText;
+    try { msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg; } catch { /* plain text */ }
+    toast(`Install failed: ${msg}`);
+  };
+  xhr.onerror = () => { setProgress(0); toast('Upload failed'); };
+  xhr.send(file);
+}
+
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragDepth++;
+  dropEl.classList.add('over');
+});
+window.addEventListener('dragover', (e) => { e.preventDefault(); });
+window.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  // dragleave fires for child elements too; only hide when truly gone.
+  if (--dragDepth <= 0) { dragDepth = 0; dropEl.classList.remove('over'); }
+});
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  dropEl.classList.remove('over');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) uploadZip(file);
+});

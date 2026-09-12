@@ -119,6 +119,11 @@ export class SessionHub {
     }
   }
 
+  /** Send a message to every connected viewer. */
+  broadcast(msg: ServerMsg): void {
+    for (const v of this.#viewers.values()) v.send(msg);
+  }
+
   #broadcastControl(): void {
     const id = this.#arbiter.controller;
     const msg: ServerMsg = {

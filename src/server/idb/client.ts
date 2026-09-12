@@ -91,6 +91,49 @@ export class IdbClient {
     return { stop: () => { try { call.write({ stop: {} }); call.end(); } catch { /* closed */ } } };
   }
 
+  /**
+   * Install an .app bundle. The companion runs on this machine, so the bundle
+   * is handed over by path rather than streamed through gRPC.
+   */
+  installApp(appPath: string, onProgress?: (fraction: number) => void): Promise<{ name: string; bundleId: string }> {
+    return new Promise((resolve, reject) => {
+      const call = this.#raw.install();
+      let name = '';
+      let bundleId = '';
+      call.on('data', (r: Any) => {
+        if (r?.name) name = String(r.name);
+        if (r?.uuid) bundleId = String(r.uuid);
+        if (typeof r?.progress === 'number' && onProgress) onProgress(r.progress);
+      });
+      call.on('error', (e: Error) => reject(e));
+      call.on('end', () => {
+        if (!name && !bundleId) reject(new Error('install finished without identifying the app'));
+        else resolve({ name, bundleId: bundleId || name });
+      });
+      call.write({ destination: 'APP' });
+      call.write({ payload: { file_path: appPath } });
+      call.end();
+    });
+  }
+
+  launchApp(bundleId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const call = this.#raw.launch();
+      call.on('data', () => { /* stdout/stderr frames, ignored */ });
+      call.on('error', (e: Error) => reject(e));
+      call.on('end', () => resolve());
+      call.write({ start: { bundle_id: bundleId, foreground_if_running: true } });
+      call.end();
+    });
+  }
+
+  /** Terminating first makes an install of an already-running app a reinstall. */
+  terminateApp(bundleId: string): Promise<void> {
+    return new Promise((resolve) => {
+      this.#raw.terminate({ bundle_id: bundleId }, () => resolve());   // absent app is fine
+    });
+  }
+
   accessibilityInfo(): Promise<string> {
     return new Promise((resolve, reject) => {
       this.#raw.accessibility_info({ format: 'NESTED' }, (err: Error | null, r: Any) =>

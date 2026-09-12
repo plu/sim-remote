@@ -1,5 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { createWriteStream, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
@@ -10,6 +13,7 @@ import { CompanionSupervisor } from './companion/supervisor.ts';
 import { IdbClient } from './idb/client.ts';
 import { SessionHub, type Viewer } from './session/hub.ts';
 import { isClientMsg, type ServerMsg } from '../shared/protocol.ts';
+import { extractAppBundle, readBundleId } from './install.ts';
 
 const cfg = parseArgs(process.argv.slice(2));
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,7 +45,17 @@ async function onRequest(req: IncomingMessage, res: ServerResponse): Promise<voi
 
   if (cfg.auth && url.searchParams.has('token')) {
     res.setHeader('Set-Cookie', `${COOKIE}=${cfg.token}; HttpOnly; SameSite=Strict; Path=/`);
-    res.writeHead(302, { Location: url.pathname }).end();
+    // Only bounce page loads to clean the URL. API calls are served directly,
+    // so a tokenised request still returns its payload rather than a redirect.
+    if (!url.pathname.startsWith('/api/')) {
+      res.writeHead(302, { Location: url.pathname }).end();
+      return;
+    }
+  }
+
+  const install = /^\/api\/install\/([^/?]+)$/.exec(url.pathname);
+  if (install && req.method === 'POST') {
+    await handleInstall(req, res, install[1]!);
     return;
   }
 
@@ -62,6 +76,46 @@ async function onRequest(req: IncomingMessage, res: ServerResponse): Promise<voi
     res.writeHead(200, { 'content-type': MIME[extname(rel)] ?? 'application/octet-stream' }).end(body);
   } catch {
     res.writeHead(404).end('not found — did you run `npm run build:client`?');
+  }
+}
+
+/** Receive an uploaded zip, extract the .app, install it, and launch it. */
+async function handleInstall(req: IncomingMessage, res: ServerResponse, udid: string): Promise<void> {
+  const staging = mkdtempSync(join(tmpdir(), 'sim-remote-zip-'));
+  const zipPath = join(staging, 'upload.zip');
+  let workDir: string | null = null;
+
+  const fail = (status: number, message: string) => {
+    console.error('[install]', message);
+    if (!res.headersSent) res.writeHead(status, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: message }));
+  };
+
+  try {
+    await pipeline(req, createWriteStream(zipPath));
+
+    const hub = await hubFor(udid);
+    hub.broadcast({ type: 'toast', text: 'Installing app…' });
+
+    const extracted = await extractAppBundle(zipPath);
+    workDir = extracted.workDir;
+
+    const bundleId = await readBundleId(extracted.appPath);
+    // Kill any running copy so a reinstall actually runs the new build.
+    await hub.client.terminateApp(bundleId);
+    await hub.client.installApp(extracted.appPath);
+    await hub.client.launchApp(bundleId);
+
+    hub.broadcast({ type: 'toast', text: `Installed ${bundleId}` });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ bundleId }));
+  } catch (e) {
+    const message = (e as Error).message;
+    try { (await hubFor(udid)).broadcast({ type: 'toast', text: `Install failed: ${message}` }); } catch { /* hub gone */ }
+    fail(500, message);
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+    if (workDir) rmSync(workDir, { recursive: true, force: true });
   }
 }
 
