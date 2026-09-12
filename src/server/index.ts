@@ -14,6 +14,7 @@ import { IdbClient } from './idb/client.ts';
 import { SessionHub, type Viewer } from './session/hub.ts';
 import { isClientMsg, type ServerMsg } from '../shared/protocol.ts';
 import { extractAppBundle, readBundleId } from './install.ts';
+import { browseUrls, lanAddresses } from './urls.ts';
 
 const cfg = parseArgs(process.argv.slice(2));
 const here = dirname(fileURLToPath(import.meta.url));
@@ -182,9 +183,20 @@ function onVideo(ws: WebSocket, url: URL): void {
 }
 
 server.listen(cfg.port, cfg.host, () => {
-  const suffix = cfg.auth ? `/?token=${cfg.token}` : '/';
-  console.log(`sim-remote listening on http://${cfg.host}:${cfg.port}${suffix}`);
-  if (!cfg.auth) console.warn('WARNING: auth disabled — anyone on this network can drive the simulator');
+  const urls = browseUrls(cfg, lanAddresses());
+  console.log(`sim-remote ready\n\n  On this Mac:  ${urls.local}`);
+  if (urls.shareable.length > 0) {
+    console.log(`\n  On your network:\n${urls.shareable.map((u) => `    ${u}`).join('\n')}`);
+  }
+  if (urls.lanNeedsHttps) {
+    console.log(
+      '\n  NOTE: the network URLs above are plain http, which browsers treat as\n' +
+      '  an insecure context — WebCodecs is unavailable there, so the video will\n' +
+      '  not play. Only the localhost URL works without TLS.',
+    );
+  }
+  if (!cfg.auth) console.warn('\nWARNING: auth disabled — anyone on this network can drive the simulator');
+  console.log('');
 });
 
 let shuttingDown = false;

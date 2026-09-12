@@ -23,7 +23,22 @@ const ROTATION: Record<Orientation, number> = {
   LANDSCAPE_RIGHT: 270,
 };
 
-const clientId = crypto.randomUUID();
+/** crypto.randomUUID() only exists in a secure context, and http://<lan-ip>
+ *  is not one. Calling it there throws and kills the whole script. */
+function newClientId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);        // available in insecure contexts too
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const clientId = newClientId();
 let ws: WebSocket | null = null;
 let videoWs: WebSocket | null = null;
 let screen: ScreenPoints = { width: 402, height: 874 };
@@ -194,7 +209,23 @@ document.getElementById('rotate')?.addEventListener('click', () => {
   send({ type: 'orientation', orientation: ORIENTATIONS[orientationIdx]! });
 });
 
-void loadSims();
+/** Fail loudly rather than sitting on "connecting…" forever. */
+function checkEnvironment(): boolean {
+  if (typeof VideoDecoder !== 'undefined') return true;
+  const why = window.isSecureContext
+    ? 'This browser has no WebCodecs support. Use Chrome, Edge, Firefox 130+, or Safari 16.4+.'
+    : `Video cannot play over plain http on ${location.hostname}. Browsers only allow `
+      + 'WebCodecs in a secure context, which means https, or localhost on this Mac.';
+  setBadge('cannot play video', false);
+  const note = document.getElementById('hint');
+  if (note) {
+    note.textContent = why;
+    note.style.color = '#f87171';
+  }
+  return false;
+}
+
+if (checkEnvironment()) void loadSims();
 
 
 // --- drag & drop app install -------------------------------------------------
