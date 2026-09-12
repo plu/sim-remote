@@ -140,8 +140,13 @@ test('the browser handshake yields a point-space screen and video', async () => 
   const hello = c.msgs.find((m) => m.type === 'hello');
   expect(hello).toBeDefined();
   if (hello?.type !== 'hello') throw new Error('no hello');
-  expect(hello.screen.width).toBeLessThan(1000);          // points, not pixels
-  expect(hello.screen.height).toBeGreaterThan(hello.screen.width);
+  // Both dimensions are points, not pixels. Which one is larger depends on the
+  // device's current orientation, so assert against the reported orientation
+  // rather than assuming portrait.
+  expect(hello.screen.width).toBeLessThan(1000);
+  expect(hello.screen.height).toBeLessThan(1000);
+  const portrait = hello.orientation === 'PORTRAIT' || hello.orientation === 'PORTRAIT_UPSIDE_DOWN';
+  expect(hello.screen.height > hello.screen.width).toBe(portrait);
 
   const types = c.nals.map(nalType);
   expect(types).toContain(NAL_SPS);

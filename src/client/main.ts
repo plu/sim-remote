@@ -10,12 +10,25 @@ const ctx = canvas.getContext('2d')!;
 const simsEl = document.getElementById('sims') as HTMLSelectElement;
 const takeBtn = document.getElementById('take') as HTMLButtonElement;
 
-const ORIENTATIONS: Orientation[] = ['PORTRAIT', 'LANDSCAPE_LEFT', 'PORTRAIT_UPSIDE_DOWN', 'LANDSCAPE_RIGHT'];
+// Upside-down portrait is deliberately not in the cycle: most iPhone apps
+// refuse it, so it either does nothing or leaves the device in a state that
+// does not match what was asked for.
+const ORIENTATIONS: Orientation[] = ['PORTRAIT', 'LANDSCAPE_LEFT', 'LANDSCAPE_RIGHT'];
+
+/** Degrees the portrait framebuffer must be turned to appear upright. */
+const ROTATION: Record<Orientation, number> = {
+  PORTRAIT: 0,
+  LANDSCAPE_LEFT: 90,
+  PORTRAIT_UPSIDE_DOWN: 180,
+  LANDSCAPE_RIGHT: 270,
+};
 
 const clientId = crypto.randomUUID();
 let ws: WebSocket | null = null;
 let videoWs: WebSocket | null = null;
 let screen: ScreenPoints = { width: 402, height: 874 };
+let density = 3;
+let rotationDeg = 0;   // how far the frame must be turned to look upright
 let recognizer: GestureRecognizer | null = null;
 let player: H264Player | null = null;
 let controlling = false;
@@ -47,6 +60,7 @@ async function loadSims(): Promise<void> {
 
 function connect(udid: string): void {
   currentUdid = udid;
+  rotationDeg = 0;
   if (retry) { clearTimeout(retry); retry = null; }
   ws?.close();
   videoWs?.close();
@@ -58,11 +72,23 @@ function connect(udid: string): void {
 
   player = new H264Player(
     (frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
+      // iOS rotates the UI *inside* a fixed portrait framebuffer, so the frame
+      // never changes shape. Turn it at draw time instead: the canvas then has
+      // the real landscape shape, the bezel rotates with it, and pointer
+      // mapping stays a plain linear fit to the canvas box.
+      const turned = rotationDeg === 90 || rotationDeg === 270;
+      const w = turned ? frame.displayHeight : frame.displayWidth;
+      const h = turned ? frame.displayWidth : frame.displayHeight;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        canvas.style.aspectRatio = `${w} / ${h}`;
       }
-      ctx.drawImage(frame, 0, 0);
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      if (rotationDeg !== 0) ctx.rotate((rotationDeg * Math.PI) / 180);
+      ctx.drawImage(frame, -frame.displayWidth / 2, -frame.displayHeight / 2);
+      ctx.restore();
       frame.close();
     },
     (m) => setBadge(m, false),
@@ -81,8 +107,14 @@ function onServerMsg(m: ServerMsg): void {
   switch (m.type) {
     case 'hello':
       screen = m.screen;
+      density = m.density;
+      rotationDeg = ROTATION[m.orientation];
+      // Start the Rotate cycle from where the device actually is, or the first
+      // click is a no-op.
+      orientationIdx = Math.max(0, ORIENTATIONS.indexOf(m.orientation));
       canvas.style.aspectRatio = `${screen.width} / ${screen.height}`;
-      recognizer = new GestureRecognizer(screen, () => canvas.getBoundingClientRect());
+      // Read `screen` live: it is replaced when the device rotates.
+      recognizer = new GestureRecognizer(() => screen, () => canvas.getBoundingClientRect());
       break;
     case 'control':
       controlling = m.controllerId === clientId;
@@ -94,6 +126,11 @@ function onServerMsg(m: ServerMsg): void {
           : 'nobody driving — touch to take over',
         controlling,
       );
+      break;
+    case 'orientation':
+      screen = m.screen;
+      rotationDeg = ROTATION[m.orientation];
+      orientationIdx = Math.max(0, ORIENTATIONS.indexOf(m.orientation));
       break;
     case 'toast':
       toast(m.text);

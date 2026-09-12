@@ -69,7 +69,15 @@ their finger first, so the simulator is never left with a stuck touch.
 | Pinch | Trackpad pinch, or two fingers on a touchscreen |
 | Typing | Just type — keystrokes go to the focused field |
 | Home / Lock / Siri | Buttons above the screen |
-| Rotate | Rotate button, cycling through four orientations |
+| Rotate | Rotate button, cycling portrait → landscape left → landscape right |
+
+Rotation is handled in the browser. iOS rotates the UI *inside* a fixed
+portrait framebuffer, so the video never changes shape — the picture simply
+arrives turned 90°. The client therefore rotates each frame as it draws it, so
+the canvas takes the real landscape shape and the bezel rotates with it, and the
+server reports the live point space (402×874 becomes 874×402) so touches still
+land where they are aimed. Upside-down portrait is left out of the cycle because
+most iPhone apps refuse it.
 
 Pinch is the one gesture that cannot be streamed live. idb's `HIDTouch` carries
 no finger identifier, so only one touch point exists at a time and two fingers

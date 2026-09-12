@@ -2,7 +2,7 @@ import { GestureRecognizer } from '../src/client/gestures.ts';
 
 const screen = { width: 402, height: 874 };
 const rect = { left: 0, top: 0, width: 402, height: 874 };
-const mk = () => new GestureRecognizer(screen, () => rect);
+const mk = () => new GestureRecognizer(() => screen, () => rect);
 const p = (x: number, y: number, pointerId = 1) => ({ clientX: x, clientY: y, pointerId });
 
 test('a tap emits down then up at the same point', () => {
@@ -163,4 +163,27 @@ test('pinch radius follows the fingers when they start far apart', () => {
   const m = g.pointerUp(p(50, 400, 1))[0]!;
   if (m.type !== 'pinch') throw new Error('expected pinch');
   expect(m.radius).toBe(100);
+});
+
+test('rotation swaps the point space the recogniser maps into', () => {
+  // The recogniser reads the screen live, so a rotation must change mapping
+  // without rebuilding it.
+  let live = { width: 402, height: 874 };
+  let box = { left: 0, top: 0, width: 402, height: 874 };
+  const g = new GestureRecognizer(() => live, () => box);
+
+  expect(g.pointerDown(p(402, 874))).toEqual([{ type: 'touch', phase: 'down', x: 402, y: 874 }]);
+  g.pointerUp(p(402, 874));
+
+  // Landscape: both the point space and the displayed box swap.
+  live = { width: 874, height: 402 };
+  box = { left: 0, top: 0, width: 874, height: 402 };
+  expect(g.pointerDown(p(874, 402))).toEqual([{ type: 'touch', phase: 'down', x: 874, y: 402 }]);
+});
+
+test('a mid-box touch maps to the mid-point in landscape', () => {
+  const live = { width: 874, height: 402 };
+  const box = { left: 0, top: 0, width: 437, height: 201 };   // displayed at half size
+  const g = new GestureRecognizer(() => live, () => box);
+  expect(g.pointerDown(p(218.5, 100.5))).toEqual([{ type: 'touch', phase: 'down', x: 437, y: 201 }]);
 });

@@ -18,8 +18,9 @@ export type ClientMsg =
 export type ConnState = 'connected' | 'reconnecting' | 'simulator-gone';
 
 export type ServerMsg =
-  | { type: 'hello'; udid: string; clientId: string; name: string; screen: ScreenPoints }
+  | { type: 'hello'; udid: string; clientId: string; name: string; screen: ScreenPoints; density: number; orientation: Orientation }
   | { type: 'control'; controllerId: string | null; controllerName: string | null }
+  | { type: 'orientation'; orientation: Orientation; screen: ScreenPoints }
   | { type: 'toast'; text: string }
   | { type: 'status'; state: ConnState };
 

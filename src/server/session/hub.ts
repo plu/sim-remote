@@ -1,4 +1,4 @@
-import type { ClientMsg, ScreenPoints, ServerMsg } from '../../shared/protocol.ts';
+import type { ClientMsg, Orientation, ScreenPoints, ServerMsg } from '../../shared/protocol.ts';
 import type { HidStream, IdbClient, VideoHandle } from '../idb/client.ts';
 import { NaluSplitter, nalType, NAL_SPS, NAL_PPS } from '../video/nalu.ts';
 import { ControlArbiter } from './arbiter.ts';
@@ -14,7 +14,9 @@ export interface Viewer {
 /** One per simulator: a single HID stream and a single video stream, fanned out. */
 export class SessionHub {
   readonly udid: string;
-  readonly screen: ScreenPoints;
+  #screen: ScreenPoints;
+  #orientation: Orientation = 'PORTRAIT';
+  readonly density: number;
 
   #client: IdbClient;
   #hid: HidStream;
@@ -25,26 +27,39 @@ export class SessionHub {
   #sps: Uint8Array | null = null;
   #pps: Uint8Array | null = null;
 
-  private constructor(client: IdbClient, udid: string, screen: ScreenPoints, hid: HidStream) {
+  private constructor(
+    client: IdbClient, udid: string, screen: ScreenPoints, density: number, hid: HidStream,
+  ) {
     this.#client = client;
     this.udid = udid;
-    this.screen = screen;
+    this.#screen = screen;
+    this.density = density;
     this.#hid = hid;
   }
 
   static async open(client: IdbClient, udid: string): Promise<SessionHub> {
-    const { screen } = await client.describe();
+    const { screen, density } = await client.describe();
     const hid = client.openHid((e) => console.error('[hid]', e.message));
-    const hub = new SessionHub(client, udid, screen, hid);
+    const hub = new SessionHub(client, udid, screen, density, hid);
     hub.#video = client.startVideo(
       (c) => hub.#onVideo(c),
       (e) => console.error('[video]', e.message),
     );
+    // The device may already be rotated. Landscape left/right are
+    // indistinguishable from the UI size alone; left is the common case.
+    const live = await client.uiSize();
+    if (live && live.width > live.height) {
+      hub.#screen = live;
+      hub.#orientation = 'LANDSCAPE_LEFT';
+    }
     return hub;
   }
 
   /** Read-only access for live tests that assert via the accessibility tree. */
   get client(): IdbClient { return this.#client; }
+
+  /** Current point space. Rotation swaps it. */
+  get screen(): ScreenPoints { return this.#screen; }
 
   #onVideo(chunk: Buffer): void {
     for (const nal of this.#splitter.push(new Uint8Array(chunk))) {
@@ -57,7 +72,10 @@ export class SessionHub {
 
   addViewer(v: Viewer): () => void {
     this.#viewers.set(v.id, v);
-    v.send({ type: 'hello', udid: this.udid, clientId: v.id, name: v.name, screen: this.screen });
+    v.send({
+      type: 'hello', udid: this.udid, clientId: v.id, name: v.name,
+      screen: this.#screen, density: this.density, orientation: this.#orientation,
+    });
     // Send only decoder configuration. A stale keyframe must NOT be replayed:
     // the deltas that follow reference frames the joiner's decoder never saw,
     // which corrupts the picture and then freezes it. The encoder emits a
@@ -114,9 +132,42 @@ export class SessionHub {
           if (k) this.#hid.key(k.code, k.shift);   // skip rather than send a wrong key
         }
         break;
-      case 'orientation': this.#hid.orientation(msg.orientation); break;
+      case 'orientation':
+        this.#hid.orientation(msg.orientation);
+        void this.#syncOrientation(msg.orientation);
+        break;
       case 'pinch': this.#hid.pinch(msg.x, msg.y, msg.scale, msg.duration, msg.radius); break;
     }
+  }
+
+  /**
+   * The framebuffer never changes shape, so clients cannot infer rotation from
+   * the video. Read the new UI size and tell them explicitly.
+   */
+  async #syncOrientation(requested: Orientation): Promise<void> {
+    const wantsPortrait = requested === 'PORTRAIT' || requested === 'PORTRAIT_UPSIDE_DOWN';
+    let observed: ScreenPoints | null = null;
+
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      const size = await this.#client.uiSize();
+      if (!size) continue;
+      observed = size;
+      if (wantsPortrait === size.height > size.width) break;   // settled
+    }
+    if (!observed) return;
+
+    // Apps may refuse an orientation (most iPhone apps reject upside-down
+    // portrait). Report what the UI ACTUALLY is, so viewers never render a
+    // rotation the device is not in.
+    const isPortrait = observed.height > observed.width;
+    const effective: Orientation = isPortrait
+      ? 'PORTRAIT'
+      : (requested === 'LANDSCAPE_RIGHT' ? 'LANDSCAPE_RIGHT' : 'LANDSCAPE_LEFT');
+
+    this.#screen = observed;
+    this.#orientation = effective;
+    this.broadcast({ type: 'orientation', orientation: effective, screen: observed });
   }
 
   /** Send a message to every connected viewer. */

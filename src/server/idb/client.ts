@@ -41,16 +41,18 @@ export class IdbClient {
     );
   }
 
-  describe(): Promise<{ screen: ScreenPoints; name: string }> {
+  describe(): Promise<{ screen: ScreenPoints; name: string; density: number }> {
     return new Promise((resolve, reject) => {
       this.#raw.describe({}, (err: Error | null, r: Any) => {
         if (err) return reject(err);
         const d = r?.target_description;
         const dim = d?.screen_dimensions;
         if (!dim) return reject(new Error('simulator reported no screen dimensions'));
+        const density = Number(dim.density) || 1;
         resolve({
           name: String(d.name ?? 'Simulator'),
-          screen: pixelsToPoints(Number(dim.width), Number(dim.height), Number(dim.density) || 1),
+          density,
+          screen: pixelsToPoints(Number(dim.width), Number(dim.height), density),
         });
       });
     });
@@ -132,6 +134,18 @@ export class IdbClient {
     return new Promise((resolve) => {
       this.#raw.terminate({ bundle_id: bundleId }, () => resolve());   // absent app is fine
     });
+  }
+
+  /** The accessibility root frame is the UI size in points, and unlike the
+   *  framebuffer it DOES follow rotation. */
+  async uiSize(): Promise<ScreenPoints | null> {
+    try {
+      const tree = JSON.parse(await this.accessibilityInfo()) as Array<{ frame?: { width: number; height: number } }>;
+      const f = tree[0]?.frame;
+      return f ? { width: Math.round(f.width), height: Math.round(f.height) } : null;
+    } catch {
+      return null;
+    }
   }
 
   accessibilityInfo(): Promise<string> {

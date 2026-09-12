@@ -21,7 +21,7 @@ const mid = (a: Pt, b: Pt) => ({ x: Math.round((a.x + b.x) / 2), y: Math.round((
  * here and emitted once, rather than streamed.
  */
 export class GestureRecognizer {
-  #screen: ScreenPoints;
+  #getScreen: () => ScreenPoints;
   #getRect: () => Rect;
 
   #activePointer: number | null = null;
@@ -36,13 +36,14 @@ export class GestureRecognizer {
   #pendingScale = 1;
   #pendingAt: Pt | null = null;
 
-  constructor(screen: ScreenPoints, getRect: () => Rect) {
-    this.#screen = screen;
+  /** The screen is read live: rotating the device swaps the point space. */
+  constructor(getScreen: () => ScreenPoints, getRect: () => Rect) {
+    this.#getScreen = getScreen;
     this.#getRect = getRect;
   }
 
   #pt(e: { clientX: number; clientY: number }): Pt {
-    return canvasToPoint(e.clientX, e.clientY, this.#getRect(), this.#screen);
+    return canvasToPoint(e.clientX, e.clientY, this.#getRect(), this.#getScreen());
   }
 
   pointerDown(e: PointerLike): ClientMsg[] {
@@ -139,7 +140,7 @@ export class GestureRecognizer {
       y: this.#pendingAt.y,
       scale: this.#pendingScale,
       duration: 0.25,
-      radius: Math.round(Math.min(this.#screen.width, this.#screen.height) / 4),
+      radius: Math.round(Math.min(this.#getScreen().width, this.#getScreen().height) / 4),
     };
     this.#pendingScale = 1;
     this.#pendingAt = null;

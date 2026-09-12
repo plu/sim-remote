@@ -1,13 +1,14 @@
 import { SessionHub, type Viewer } from '../src/server/session/hub.ts';
 import type { ServerMsg } from '../src/shared/protocol.ts';
 
-function fakeClient() {
+function fakeClient(ui: { width: number; height: number } = { width: 402, height: 874 }) {
   const calls: string[] = [];
   let emit: (c: Buffer) => void = () => {};
   return {
     calls,
     pushNal: (b: Buffer) => emit(b),
-    describe: async () => ({ screen: { width: 402, height: 874 }, name: 'Fake' }),
+    describe: async () => ({ screen: { width: 402, height: 874 }, name: 'Fake', density: 3 }),
+    uiSize: async () => ui,
     openHid: () => ({
       touch: (p: string, x: number, y: number) => calls.push(`touch:${p}:${x},${y}`),
       button: (b: string) => calls.push(`button:${b}`),
@@ -181,3 +182,37 @@ test('unmappable characters are skipped rather than sent as a wrong key', async 
   hub.handle('alice', { type: 'text', text: 'aéb' });
   expect(c.calls).toEqual(['key:4', 'key:5']);
 });
+
+test('rotation broadcasts the orientation the UI actually adopted', async () => {
+  // The device really is landscape, so a portrait request must not be echoed
+  // back as portrait — viewers would render a rotation the device is not in.
+  const c = fakeClient({ width: 874, height: 402 });
+  const hub = await open(c);
+  const a = viewer('alice');
+  hub.addViewer(a);
+  a.msgs.length = 0;
+
+  hub.handle('alice', { type: 'orientation', orientation: 'PORTRAIT_UPSIDE_DOWN' });
+  await new Promise((r) => setTimeout(r, 3600));
+
+  const msg = a.msgs.find((m) => m.type === 'orientation');
+  if (!msg || msg.type !== 'orientation') throw new Error('no orientation broadcast');
+  expect(msg.orientation).toBe('LANDSCAPE_LEFT');
+  expect(msg.screen).toEqual({ width: 874, height: 402 });
+  expect(hub.screen).toEqual({ width: 874, height: 402 });
+}, 15_000);
+
+test('a landscape request is reported as the landscape side asked for', async () => {
+  const c = fakeClient({ width: 874, height: 402 });
+  const hub = await open(c);
+  const a = viewer('alice');
+  hub.addViewer(a);
+  a.msgs.length = 0;
+
+  hub.handle('alice', { type: 'orientation', orientation: 'LANDSCAPE_RIGHT' });
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const msg = a.msgs.find((m) => m.type === 'orientation');
+  if (!msg || msg.type !== 'orientation') throw new Error('no orientation broadcast');
+  expect(msg.orientation).toBe('LANDSCAPE_RIGHT');
+}, 15_000);
