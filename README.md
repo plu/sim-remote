@@ -1,5 +1,10 @@
 # sim-remote
 
+[![CI](https://github.com/plu/sim-remote/actions/workflows/ci.yml/badge.svg)](https://github.com/plu/sim-remote/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-lightgrey)
+![Xcode 26+](https://img.shields.io/badge/Xcode-26%2B-blue)
+
 Stream a booted iOS simulator to the browser and drive it with real touch input —
 so teammates without a Mac can poke at a build.
 
