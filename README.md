@@ -12,37 +12,50 @@ so teammates without a Mac can poke at a build.
 - macOS 15+, Xcode 26+
 - A browser with WebCodecs: Chrome, Edge, Firefox 130+, or Safari 16.4+
 
-Node and `idb_companion` are both pinned in `mise.toml`, so:
+Node, `idb_companion` and [aube](https://github.com/aubepkg/aube) (the package
+manager) are all pinned in `mise.toml`:
 
 ```bash
-mise install
+mise install          # tools
+mise run install      # node dependencies
 ```
 
-installs everything. No Homebrew tap is needed — `idb_companion` comes from
-idb's own GitHub release. If you would rather use Homebrew, `brew tap
-facebook/fb && brew install idb-companion` also works; whichever is first on
-`PATH` is used.
+No Homebrew tap is needed — `idb_companion` comes from idb's own GitHub
+release. If you prefer Homebrew, `brew tap facebook/fb && brew install
+idb-companion` also works; whichever is first on `PATH` wins.
 
 ## Run
 
 Boot a simulator first (Xcode, or `xcrun simctl boot <udid>`), then:
 
 ```bash
-mise install          # once
-npm install           # once
-npm run build:client  # after any client change
-npm run dev
+mise run dev
 ```
 
-If you have not enabled mise's shell activation, prefix the last two with
-`mise x --` so Node and `idb_companion` are on `PATH`:
+That builds the client and starts the server, printing a URL with a token.
+
+### Tasks
+
+| Task | What it does |
+|---|---|
+| `mise run dev` | Build the client, then start the server |
+| `mise run server` | Start the server without rebuilding |
+| `mise run build` | Build the browser client |
+| `mise run test` | Unit tests — no simulator needed |
+| `mise run test:live` | Integration tests against a booted simulator |
+| `mise run typecheck` | Typecheck without emitting |
+| `mise run check` | Typecheck and unit tests |
+| `mise run install` | Install node dependencies |
+| `mise run sims` | List booted simulators |
+
+Server options pass straight through:
 
 ```bash
-mise x -- npm run build:client
-mise x -- npm run dev
+mise run dev -- --port 9000 --host 127.0.0.1
 ```
 
-Pass server options after `--`, for example `mise x -- npm run dev -- --port 9000`.
+Tasks run inside mise's environment, so Node and `idb_companion` are on `PATH`
+without needing shell activation.
 
 The server prints a URL containing a generated token:
 
@@ -104,10 +117,13 @@ it once — debounced for trackpads, emitted on release for touchscreens.
 ## Development
 
 ```bash
-npm test          # unit tests, no simulator needed
-npm run test:live # integration tests, needs a booted simulator
-npm run typecheck
+mise run test       # unit tests, no simulator needed
+mise run test:live  # integration tests, needs a booted simulator
+mise run check      # typecheck + unit tests
 ```
+
+Dependencies are managed with `aube`, which reads and writes the existing
+`package-lock.json` in place — `npm` still works if you prefer it.
 
 Live tests assert through the accessibility tree rather than screenshot diffs:
 springboard gestures animate and settle back to a pixel-identical screen, so

@@ -3,3 +3,49 @@ node = "26.8.1"
 # idb_companion is the daemon that drives the simulator. Installed from the
 # project's own release rather than a brew tap, so setup is reproducible.
 "github:facebook/idb" = { version = "1.5.7", exe = "idb_companion" }
+# Node package manager; reads/writes the existing lockfile in place.
+# Pinned to the real repo: mise's registry still aliases this to jdx/aube,
+# which now redirects to aubepkg/aube, and the stale alias breaks artifact
+# attestation verification.
+"github:aubepkg/aube" = "latest"
+
+# Tasks: run with `mise run <name>`, e.g. `mise run dev`.
+# These delegate to the package.json scripts so there is one definition of
+# how each thing runs.
+
+[tasks.install]
+description = "Install node dependencies"
+run = "aube install"
+
+[tasks.build]
+description = "Build the browser client into dist/client"
+run = "aube run build:client"
+
+[tasks.server]
+description = "Start the server without rebuilding the client"
+run = "aube run dev"
+
+[tasks.dev]
+description = "Build the client, then start the server"
+depends = ["build"]
+run = "aube run dev"
+
+[tasks.test]
+description = "Unit tests — no simulator needed"
+run = "aube run test"
+
+[tasks."test:live"]
+description = "Integration tests against a booted simulator"
+run = "aube run test:live"
+
+[tasks.typecheck]
+description = "Typecheck without emitting"
+run = "aube run typecheck"
+
+[tasks.check]
+description = "Typecheck and unit tests"
+depends = ["typecheck", "test"]
+
+[tasks.sims]
+description = "List booted simulators"
+run = "xcrun simctl list devices booted"
