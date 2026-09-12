@@ -199,3 +199,10 @@ Note that HID coordinates are in **points**, not pixels (`describe()` reports
 pixels plus a density factor).
 
 See `docs/superpowers/specs/` for the full design.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+`proto/idb.proto` is vendored from [facebook/idb](https://github.com/facebook/idb),
+which is also MIT licensed.
