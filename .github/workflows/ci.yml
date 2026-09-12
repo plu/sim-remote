@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that needs no simulator. Fast, and should never be flaky.
+  unit:
+    name: Unit tests
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Typecheck and unit tests
+        run: mise run check
+
+      - name: Build client
+        run: mise run build
+
+  # Drives a real booted simulator through idb, so it needs Xcode and a
+  # runtime. macos-26 ships Xcode 26.6 and the iOS 26.5 runtime.
+  live:
+    name: Live tests (simulator)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          mise exec -- idb_companion --version
+
+      - name: Boot a simulator
+        run: ./scripts/boot-sim.sh
+
+      - name: Live tests
+        run: mise run test:live
+
+      - name: Simulator diagnostics on failure
+        if: failure()
+        run: |
+          xcrun simctl list devices booted || true
+          pgrep -fl idb_companion || echo "no companion running"
