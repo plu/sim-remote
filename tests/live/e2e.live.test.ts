@@ -88,6 +88,32 @@ function centreOf(tree: string, label: string): { x: number; y: number } {
   return { x: Math.round(f.x + f.width / 2), y: Math.round(f.y + f.height / 2) };
 }
 
+/** Wait for a message to arrive rather than guessing at a sleep. The first
+ *  client through pays the companion's cold start, which is slow on CI. */
+async function waitForMessage<T extends ServerMsg['type']>(
+  client: { msgs: ServerMsg[] }, type: T, label: string, timeoutMs = 90_000,
+): Promise<Extract<ServerMsg, { type: T }>> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const hit = client.msgs.find((m) => m.type === type);
+    if (hit) return hit as Extract<ServerMsg, { type: T }>;
+    await sleep(250);
+  }
+  throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`);
+}
+
+/** Wait for a condition on the accumulating video bytes. */
+async function waitFor(
+  cond: () => boolean, label: string, timeoutMs = 60_000,
+): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (cond()) return;
+    await sleep(250);
+  }
+  throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`);
+}
+
 /** The server spawns a companion lazily, on the first websocket connection, so
  *  its socket does not exist until then. Call this only AFTER openClient(). */
 async function connectAx(): Promise<IdbClient> {
@@ -103,7 +129,7 @@ async function connectAx(): Promise<IdbClient> {
 /** Poll the accessibility tree instead of sleeping a fixed amount: the
  *  simulator's starting state and animation timing both vary between runs. */
 async function waitForTree(
-  pred: (t: string) => boolean, label: string, timeoutMs = 20_000,
+  pred: (t: string) => boolean, label: string, timeoutMs = 45_000,
 ): Promise<string> {
   const started = Date.now();
   let last = '';
@@ -137,11 +163,8 @@ test('unauthenticated websocket upgrades are rejected', async () => {
 
 test('the browser handshake yields a point-space screen and video', async () => {
   const c = await openClient();
-  await sleep(6000);
-
-  const hello = c.msgs.find((m) => m.type === 'hello');
-  expect(hello).toBeDefined();
-  if (hello?.type !== 'hello') throw new Error('no hello');
+  const hello = await waitForMessage(c, 'hello', 'the handshake');
+  await waitFor(() => c.nals.some(isKeyframe), 'a keyframe');
   // Both dimensions are points, not pixels. Which one is larger depends on the
   // device's current orientation, so assert against the reported orientation
   // rather than assuming portrait.
@@ -218,13 +241,12 @@ test('typed text arrives as the right characters, not ASCII-as-usage-codes', asy
     await sleep(12);
   }
   c.send({ type: 'touch', phase: 'up', x, y: y0 + 240 });
-  await sleep(2500);
+  await waitForTree((t) => t.includes('Suggestions') || t.includes('Search in Apps'), 'Spotlight');
 
   const typed = 'Hi?';
   for (const ch of typed) { c.send({ type: 'text', text: ch }); await sleep(250); }
-  await sleep(2500);
 
-  const tree = await ax.accessibilityInfo();
-  expect(tree).toContain(typed);        // 'Hi?' — uppercase and a shifted symbol
+  // 'Hi?' exercises an uppercase letter and a shifted symbol.
+  await waitForTree((t) => t.includes(typed), `the typed text ${typed}`);
   c.close();
 }, 90_000);
