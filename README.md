@@ -66,7 +66,7 @@ sim-remote ready
   On this Mac:  http://localhost:8080/?token=ab12…
 
   On your network:
-    http://192.168.1.131:8080/?token=ab12…
+    http://192.168.1.42:8080/?token=ab12…
 ```
 
 The token is exchanged for an `HttpOnly` session cookie on first load, so later
@@ -192,22 +192,5 @@ then freezes it. Note also that idb's `key_frame_rate` is an interval in
 
 Note that HID coordinates are in **points**, not pixels (`describe()` reports
 pixels plus a density factor).
-
-## Why idb rather than axe
-
-This started as a wrapper around [axe](https://github.com/cameroncooke/axe).
-Measured on an iPhone 17 Pro simulator:
-
-| | axe 1.8.0 | idb 1.5.7 |
-|---|---|---|
-| Tap latency | ~1080 ms | **2–3 ms** |
-| Video | MJPEG 6.7fps @ 0.5 scale | H264 **30.5fps** @ 1.0 scale |
-| Bandwidth | ~850 KB/s | **118 KB/s** |
-
-The difference is structural: axe is a CLI for one-shot automation, reloading
-private frameworks and re-running an orientation probe on every invocation
-(~0.8–1.0s per step, even inside a single `batch`), and `batch --stdin` buffers
-until EOF so there is no persistent-session workaround. idb's companion is a
-long-lived daemon holding an open HID stream.
 
 See `docs/superpowers/specs/` for the full design.
