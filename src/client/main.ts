@@ -105,22 +105,37 @@ function onServerMsg(m: ServerMsg): void {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId);
+  // Capture keeps a drag alive outside the canvas, but must never break input
+  // if the pointer id is not capturable.
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
   sendAll(recognizer?.pointerDown(e) ?? []);
 });
 canvas.addEventListener('pointermove', (e) => {
-  const coalesced = e.getCoalescedEvents?.() ?? [e];
-  for (const ce of coalesced) {
+  // getCoalescedEvents() can return an EMPTY array, not just be absent — then
+  // `?? [e]` does not help and every move is silently dropped, killing drags.
+  const coalesced = e.getCoalescedEvents?.() ?? [];
+  const moves = coalesced.length > 0 ? coalesced : [e];
+  for (const ce of moves) {
     sendAll(recognizer?.pointerMove({ clientX: ce.clientX, clientY: ce.clientY, pointerId: e.pointerId }) ?? []);
   }
 });
 const up = (e: PointerEvent) => sendAll(recognizer?.pointerUp(e) ?? []);
 canvas.addEventListener('pointerup', up);
 canvas.addEventListener('pointercancel', up);
+// A trackpad emits pinch wheel events at ~60/s. idb's pinch is a canned
+// server-side gesture, so firing one per tick would stack dozens of overlapping
+// animations. Accumulate, then send a single pinch once the gesture settles.
+let pinchTimer: ReturnType<typeof setTimeout> | null = null;
 canvas.addEventListener('wheel', (e) => {
   if (!e.ctrlKey) return;
   e.preventDefault();
-  sendAll(recognizer?.wheel(e) ?? []);
+  recognizer?.wheel(e);
+  if (pinchTimer) clearTimeout(pinchTimer);
+  pinchTimer = setTimeout(() => {
+    pinchTimer = null;
+    const m = recognizer?.takePinch();
+    if (m) send(m);
+  }, 120);
 }, { passive: false });
 
 window.addEventListener('keydown', (e) => {

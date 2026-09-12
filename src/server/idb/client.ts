@@ -23,7 +23,7 @@ export interface HidStream {
   touch(phase: TouchPhase, x: number, y: number): void;
   button(b: HardwareButton): void;
   key(code: number, shift?: boolean): void;
-  pinch(x: number, y: number, scale: number, duration: number): void;
+  pinch(x: number, y: number, scale: number, duration: number, radius: number): void;
   orientation(o: Orientation): void;
   end(): void;
 }
@@ -72,7 +72,7 @@ export class IdbClient {
         w(press(k, 'UP'));
         if (shift) w(press(sh, 'UP'));
       },
-      pinch: (x, y, scale, duration) => w({ pinch: { center: point(x, y), scale, duration, radius: 100 } }),
+      pinch: (x, y, scale, duration, radius) => w({ pinch: { center: point(x, y), scale, duration, radius } }),
       orientation: (o) => w({ orientation: { orientation: o } }),
       end: () => { try { call.end(); } catch { /* already closed */ } },
     };

@@ -66,10 +66,16 @@ their finger first, so the simulator is never left with a stuck touch.
 | Interaction | How |
 |---|---|
 | Tap, drag, scroll, long-press | Mouse or touch on the canvas |
-| Pinch | Trackpad pinch (or two fingers on a touchscreen) |
+| Pinch | Trackpad pinch, or two fingers on a touchscreen |
 | Typing | Just type — keystrokes go to the focused field |
 | Home / Lock / Siri | Buttons above the screen |
 | Rotate | Rotate button, cycling through four orientations |
+
+Pinch is the one gesture that cannot be streamed live. idb's `HIDTouch` carries
+no finger identifier, so only one touch point exists at a time and two fingers
+cannot be tracked continuously the way a drag is. Multi-touch has to go through
+idb's canned `HIDPinch`, so the browser accumulates the whole gesture and sends
+it once — debounced for trackpads, emitted on release for touchscreens.
 
 ## Development
 

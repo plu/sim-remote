@@ -115,7 +115,7 @@ export class SessionHub {
         }
         break;
       case 'orientation': this.#hid.orientation(msg.orientation); break;
-      case 'pinch': this.#hid.pinch(msg.x, msg.y, msg.scale, msg.duration); break;
+      case 'pinch': this.#hid.pinch(msg.x, msg.y, msg.scale, msg.duration, msg.radius); break;
     }
   }
 

@@ -11,7 +11,7 @@ export type ClientMsg =
   | { type: 'key'; keycode: number }
   | { type: 'text'; text: string }
   | { type: 'orientation'; orientation: Orientation }
-  | { type: 'pinch'; x: number; y: number; scale: number; duration: number }
+  | { type: 'pinch'; x: number; y: number; scale: number; duration: number; radius: number }
   | { type: 'takeControl' }
   | { type: 'setName'; name: string };
 
