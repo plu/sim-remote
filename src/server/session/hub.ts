@@ -1,6 +1,6 @@
 import type { ClientMsg, ScreenPoints, ServerMsg } from '../../shared/protocol.ts';
 import type { HidStream, IdbClient, VideoHandle } from '../idb/client.ts';
-import { NaluSplitter, nalType, isKeyframe, NAL_SPS, NAL_PPS } from '../video/nalu.ts';
+import { NaluSplitter, nalType, NAL_SPS, NAL_PPS } from '../video/nalu.ts';
 import { ControlArbiter } from './arbiter.ts';
 import { charToHid } from '../../shared/keymap.ts';
 
@@ -24,7 +24,6 @@ export class SessionHub {
   #splitter = new NaluSplitter();
   #sps: Uint8Array | null = null;
   #pps: Uint8Array | null = null;
-  #lastKeyframe: Uint8Array | null = null;
 
   private constructor(client: IdbClient, udid: string, screen: ScreenPoints, hid: HidStream) {
     this.#client = client;
@@ -52,7 +51,6 @@ export class SessionHub {
       const t = nalType(nal);
       if (t === NAL_SPS) this.#sps = nal;
       else if (t === NAL_PPS) this.#pps = nal;
-      else if (isKeyframe(nal)) this.#lastKeyframe = nal;
       for (const v of this.#viewers.values()) v.sendVideo(nal);
     }
   }
@@ -60,10 +58,12 @@ export class SessionHub {
   addViewer(v: Viewer): () => void {
     this.#viewers.set(v.id, v);
     v.send({ type: 'hello', udid: this.udid, clientId: v.id, name: v.name, screen: this.screen });
-    // Replay decoder init so a joiner paints without waiting for the next keyframe.
+    // Send only decoder configuration. A stale keyframe must NOT be replayed:
+    // the deltas that follow reference frames the joiner's decoder never saw,
+    // which corrupts the picture and then freezes it. The encoder emits a
+    // keyframe every second, so the wait is short.
     if (this.#sps) v.sendVideo(this.#sps);
     if (this.#pps) v.sendVideo(this.#pps);
-    if (this.#lastKeyframe) v.sendVideo(this.#lastKeyframe);
     this.#broadcastControl();
     return () => this.removeClient(v.id);
   }

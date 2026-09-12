@@ -96,8 +96,13 @@ Browser  ──WS /video──  H264 NAL units  ──►  WebCodecs ──► c
 
 One companion, one HID stream and one video stream per simulator, regardless of
 viewer count — so extra viewers cost bandwidth, not simulator load. A joining
-viewer is immediately sent the cached SPS/PPS and most recent keyframe, so it
-paints right away instead of waiting up to a second.
+viewer is sent the cached SPS/PPS so its decoder can configure, then waits for
+the next keyframe (at most a second) before painting.
+
+A stale keyframe is deliberately *not* replayed to a joiner: the deltas after it
+reference frames that viewer's decoder never saw, which corrupts the picture and
+then freezes it. Note also that idb's `key_frame_rate` is an interval in
+**seconds**, not frames.
 
 Note that HID coordinates are in **points**, not pixels (`describe()` reports
 pixels plus a density factor).

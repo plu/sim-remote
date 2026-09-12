@@ -85,7 +85,7 @@ export class IdbClient {
     call.write({
       start: {
         fps: 30, format: 'H264', compression_quality: 0.7, scale_factor: 1.0,
-        avg_bitrate: 4_000_000, key_frame_rate: 30,
+        avg_bitrate: 4_000_000, key_frame_rate: 1,   // SECONDS between keyframes, not frames
       },
     });
     return { stop: () => { try { call.write({ stop: {} }); call.end(); } catch { /* closed */ } } };

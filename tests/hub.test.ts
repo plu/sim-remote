@@ -80,7 +80,7 @@ test('the ousted controller is told who took over', async () => {
   expect(a.msgs.some((m) => m.type === 'toast' && m.text.includes('bob'))).toBe(true);
 });
 
-test('a joining viewer immediately receives cached SPS/PPS and last keyframe', async () => {
+test('a joining viewer gets SPS/PPS for decoder config', async () => {
   const c = fakeClient();
   const hub = await open(c);
   hub.addViewer(viewer('early'));
@@ -95,7 +95,24 @@ test('a joining viewer immediately receives cached SPS/PPS and last keyframe', a
   const types = late.nals.map((n) => n[0]! & 0x1f);
   expect(types).toContain(7);
   expect(types).toContain(8);
-  expect(types).toContain(5);
+});
+
+test('a joining viewer is NOT given a stale keyframe', async () => {
+  // Replaying an old keyframe and then feeding current deltas makes the
+  // decoder reference frames it never saw: permanent corruption, then a
+  // freeze once it errors. The joiner must wait for a fresh keyframe.
+  const c = fakeClient();
+  const hub = await open(c);
+  hub.addViewer(viewer('early'));
+  c.pushNal(sc(0x67, 0x42, 0xE0, 0x1E));
+  c.pushNal(sc(0x68, 0xCE));
+  c.pushNal(sc(0x65, 0xAA));               // keyframe, now in the past
+  c.pushNal(sc(0x41, 0xBB));
+  c.pushNal(sc(0x41, 0xCC));
+
+  const late = viewer('late');
+  hub.addViewer(late);
+  expect(late.nals.map((n) => n[0]! & 0x1f)).not.toContain(5);
 });
 
 test('video reaches every connected viewer', async () => {

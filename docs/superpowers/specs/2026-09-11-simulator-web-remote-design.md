@@ -99,12 +99,19 @@ chrome (hardware buttons, rotation), control badge.
 
 ### Video
 
-Companion -> server parses Annex-B NAL units, caching SPS/PPS and the most
-recent keyframe -> broadcast to subscribers. A joining viewer immediately
-receives cached SPS/PPS plus the last keyframe, so it paints at once instead of
-waiting up to a second. Stream parameters: `format: H264`, `fps: 30`,
-`scale_factor: 1.0`, `key_frame_rate: 30` (one keyframe per second),
-`avg_bitrate: 4_000_000`.
+Companion -> server parses Annex-B NAL units, caching SPS/PPS -> broadcast to
+subscribers. A joining viewer immediately receives cached SPS/PPS so its decoder
+can configure, then waits for the next keyframe before rendering.
+
+**A stale keyframe must never be replayed to a joiner.** An earlier design did
+this to avoid the wait, but the deltas that follow reference frames the joiner's
+decoder never saw: the picture corrupts, the decoder errors, and it then freezes
+waiting for a keyframe that may be far off.
+
+Stream parameters: `format: H264`, `fps: 30`, `scale_factor: 1.0`,
+`avg_bitrate: 4_000_000`, and `key_frame_rate: 1`. Note that `key_frame_rate` is
+an **interval in seconds, not a frame count** — measured: 30 yields one keyframe
+per 30s, while 1 yields one per second, which bounds a joiner's wait.
 
 Scale factors that yield odd pixel dimensions must be rejected: 1206x2622 at
 0.5 gives 603x1311 and the compression session fails with `-12902`. The server
