@@ -39,9 +39,91 @@ url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-x8
 url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553097930"
 provenance = "github-attestations"
 
+[[tools.caddy]]
+version = "2.11.4"
+backend = "aqua:caddyserver/caddy"
+
+[tools.caddy."platforms.linux-arm64"]
+checksum = "sha256:52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912318"
+
+[tools.caddy."platforms.linux-arm64-musl"]
+checksum = "sha256:52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912318"
+
+[tools.caddy."platforms.linux-x64"]
+checksum = "sha256:527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912315"
+
+[tools.caddy."platforms.linux-x64-musl"]
+checksum = "sha256:527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912315"
+
+[tools.caddy."platforms.macos-arm64"]
+checksum = "sha256:9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_mac_arm64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912311"
+
+[tools.caddy."platforms.macos-x64"]
+checksum = "sha256:34bc9e5cceee8d67844ef51da624f5b79e8d070f27236e050c3f0066a2dba534"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_mac_amd64.tar.gz"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912339"
+
+[tools.caddy."platforms.windows-x64"]
+checksum = "sha256:1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_windows_amd64.zip"
+url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912304"
+
 [[tools."github:aubepkg/aube"]]
 version = "2.2.13"
 backend = "github:aubepkg/aube"
+
+[tools."github:aubepkg/aube"."platforms.linux-arm64"]
+checksum = "sha256:561a16c933188ef14955989cf99bb368748df5a3903c4cf12d2b05c31d8f4ec8"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553098701"
+provenance = "github-attestations"
+
+[tools."github:aubepkg/aube"."platforms.linux-arm64-musl"]
+checksum = "sha256:ad9fb86ad219ada9abc1c7907952505c540c41b5c8e0ffca828e8a2cd2017b11"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553072698"
+provenance = "github-attestations"
+
+[tools."github:aubepkg/aube"."platforms.linux-x64"]
+checksum = "sha256:0b0e734d5fe6e90a286229136d1e97e217b1836e297408cbf9d07cd020cfb4c2"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553074742"
+provenance = "github-attestations"
+
+[tools."github:aubepkg/aube"."platforms.linux-x64-musl"]
+checksum = "sha256:894bb4991b2cb8054b562dd85682d7e7f21e4479ace26c8f13d4aa362dec0b63"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553073513"
+provenance = "github-attestations"
+
+[tools."github:aubepkg/aube"."platforms.macos-arm64"]
+checksum = "sha256:f999226cddee14afc8d0d2d461191888b65064262e66e83ce1fc8e9069792c1e"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553104973"
+provenance = "github-attestations"
+provenance_verified = true
+
+[tools."github:aubepkg/aube"."platforms.macos-x64"]
+checksum = "sha256:162f39cd3a4ae2d22b0f337555e72ba3acb03dffde11bcd6166510ea17acbe0c"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/libaube-x86_64-apple-darwin.dylib"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553098071"
+provenance = "github-attestations"
+
+[tools."github:aubepkg/aube"."platforms.windows-x64"]
+checksum = "sha256:84b052e0233b37b875af71487a342f6c170da7827ea57ab36ff29102801d56ac"
+url = "https://github.com/aubepkg/aube/releases/download/v2.2.13/aube-v2.2.13-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/aubepkg/aube/releases/assets/553097930"
+provenance = "github-attestations"
 
 [[tools."github:facebook/idb"]]
 version = "1.5.7"

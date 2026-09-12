@@ -40,6 +40,7 @@ That builds the client and starts the server, printing a URL with a token.
 |---|---|
 | `mise run dev` | Build the client, then start the server |
 | `mise run server` | Start the server without rebuilding |
+| `mise run share` | Serve over https via Caddy, for LAN teammates |
 | `mise run build` | Build the browser client |
 | `mise run test` | Unit tests — no simulator needed |
 | `mise run test:live` | Integration tests against a booted simulator |
@@ -73,13 +74,37 @@ URLs stay clean.
 
 > **Video does not play over plain `http://` from another machine.** Browsers
 > expose WebCodecs (and `crypto.randomUUID`) only in a *secure context* — https,
-> or `localhost`, which is exempt. The network URLs above will load the page and
-> then tell you exactly this. Until TLS is added, the localhost URL is the one
-> that works.
+> or `localhost`, which is exempt. Plain `mise run dev` is therefore for this
+> Mac only; use `mise run share` to let anyone else connect.
 
 Note that the bind address is not itself browsable: `0.0.0.0` means "listen on
 every interface", and pasting it into a browser gives a blank page in Safari and
 a page that never connects in Chrome. That is why the server prints real URLs.
+
+### Sharing with teammates
+
+```bash
+mise run share
+```
+
+This runs [Caddy](https://caddyserver.com) in front of the app to terminate TLS,
+and prints an `https://<your-ip>:8443/?token=…` URL to hand out. The app itself
+binds to loopback only — Caddy is the front door.
+
+The certificate comes from Caddy's own local CA (`tls internal`), so it needs no
+network access, but browsers will show a one-time warning per machine. To remove
+the warning, install Caddy's root certificate into the system trust store:
+
+```bash
+mise x -- caddy trust     # asks for sudo; modifies system trust
+```
+
+That is a real trust decision, so it is left to you rather than done
+automatically. Skipping it is fine — clicking through the warning once per
+machine works.
+
+Ports can be overridden with `SIM_REMOTE_PORT`, `SIM_REMOTE_TLS_PORT`, and the
+advertised address with `SIM_REMOTE_LAN_HOST`.
 
 ### Options
 

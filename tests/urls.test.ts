@@ -1,6 +1,6 @@
 import { browseUrls } from '../src/server/urls.ts';
 
-const cfg = { host: '0.0.0.0', port: 8080, auth: true, token: 'abc' };
+const cfg = { host: '0.0.0.0', port: 8080, auth: true, token: 'abc', publicOrigin: null };
 const lan = ['192.168.1.131', '10.0.0.5'];
 
 test('a wildcard bind never prints 0.0.0.0 as a browsable url', () => {
@@ -36,4 +36,15 @@ test('shareable addresses are flagged as needing a secure context', () => {
   // http://<lan-ip> is not one — only localhost is.
   expect(browseUrls(cfg, lan).lanNeedsHttps).toBe(true);
   expect(browseUrls({ ...cfg, host: '127.0.0.1' }, lan).lanNeedsHttps).toBe(false);
+});
+
+test('a public https origin is printed instead of the bind address', () => {
+  const urls = browseUrls({ ...cfg, host: '127.0.0.1', publicOrigin: 'https://192.168.1.131:8443' }, lan);
+  expect(urls.local).toBe('https://192.168.1.131:8443/?token=abc');
+  expect(urls.shareable).toEqual(['https://192.168.1.131:8443/?token=abc']);
+  expect(urls.lanNeedsHttps).toBe(false);   // https is a secure context
+});
+
+test('a public http origin is still flagged as insecure', () => {
+  expect(browseUrls({ ...cfg, publicOrigin: 'http://192.168.1.131:9000' }, lan).lanNeedsHttps).toBe(true);
 });

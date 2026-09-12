@@ -1,0 +1,19 @@
+# TLS terminator for sim-remote.
+#
+# WebCodecs only exists in a secure context, so teammates on the LAN must reach
+# the app over https. Caddy issues a certificate from its own local CA
+# ("tls internal"), which needs no network access — browsers will show a
+# one-time warning unless the CA root is trusted on that machine.
+#
+# Started for you by `mise run share`, which fills in SIM_REMOTE_LAN_HOST.
+
+{
+	admin off
+	auto_https disable_redirects
+}
+
+https://{$SIM_REMOTE_LAN_HOST:localhost}:{$SIM_REMOTE_TLS_PORT:8443}, https://localhost:{$SIM_REMOTE_TLS_PORT:8443} {
+	tls internal
+	# Websockets are proxied transparently; no extra config needed.
+	reverse_proxy 127.0.0.1:{$SIM_REMOTE_PORT:8080}
+}

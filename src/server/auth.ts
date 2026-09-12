@@ -2,7 +2,14 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 export const COOKIE = 'sim_remote_session';
 
-export interface Config { host: string; port: number; auth: boolean; token: string }
+export interface Config {
+  host: string;
+  port: number;
+  auth: boolean;
+  token: string;
+  /** Origin users actually reach, when a proxy terminates TLS in front. */
+  publicOrigin: string | null;
+}
 
 export function parseArgs(argv: string[]): Config {
   const get = (flag: string): string | undefined => {
@@ -14,6 +21,7 @@ export function parseArgs(argv: string[]): Config {
     port: Number(get('--port') ?? 8080),
     auth: !argv.includes('--no-auth'),
     token: get('--token') ?? randomBytes(16).toString('hex'),
+    publicOrigin: get('--public-origin') ?? null,
   };
 }
 

@@ -30,6 +30,17 @@ export function browseUrls(cfg: Config, lan: string[]): BrowseUrls {
   const suffix = cfg.auth ? `/?token=${cfg.token}` : '/';
   const url = (host: string) => `http://${host}:${cfg.port}${suffix}`;
   const wildcard = WILDCARD.has(cfg.host);
+
+  // A proxy in front (Caddy) serves the origin people actually open, so print
+  // that rather than this process's bind address.
+  if (cfg.publicOrigin) {
+    return {
+      local: `${cfg.publicOrigin}${suffix}`,
+      shareable: [`${cfg.publicOrigin}${suffix}`],
+      lanNeedsHttps: !cfg.publicOrigin.startsWith('https://'),
+    };
+  }
+
   return {
     local: url(wildcard ? 'localhost' : cfg.host),
     shareable: wildcard ? lan.map(url) : [],

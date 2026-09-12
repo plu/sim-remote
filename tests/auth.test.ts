@@ -1,6 +1,6 @@
 import { parseArgs, checkAuth, COOKIE } from '../src/server/auth.ts';
 
-const cfg = { host: '0.0.0.0', port: 8080, auth: true, token: 'secret' };
+const cfg = { host: '0.0.0.0', port: 8080, auth: true, token: 'secret', publicOrigin: null };
 
 test('defaults: auth on, LAN bind, generated token', () => {
   const c = parseArgs([]);
