@@ -10,23 +10,39 @@ so teammates without a Mac can poke at a build.
 ## Requirements
 
 - macOS 15+, Xcode 26+
-- `idb_companion`:
-  ```bash
-  brew tap facebook/fb
-  brew install idb-companion
-  ```
-- Node 26 (pinned in `mise.toml`)
 - A browser with WebCodecs: Chrome, Edge, Firefox 130+, or Safari 16.4+
+
+Node and `idb_companion` are both pinned in `mise.toml`, so:
+
+```bash
+mise install
+```
+
+installs everything. No Homebrew tap is needed — `idb_companion` comes from
+idb's own GitHub release. If you would rather use Homebrew, `brew tap
+facebook/fb && brew install idb-companion` also works; whichever is first on
+`PATH` is used.
 
 ## Run
 
 Boot a simulator first (Xcode, or `xcrun simctl boot <udid>`), then:
 
 ```bash
-npm install
-npm run build:client
+mise install          # once
+npm install           # once
+npm run build:client  # after any client change
 npm run dev
 ```
+
+If you have not enabled mise's shell activation, prefix the last two with
+`mise x --` so Node and `idb_companion` are on `PATH`:
+
+```bash
+mise x -- npm run build:client
+mise x -- npm run dev
+```
+
+Pass server options after `--`, for example `mise x -- npm run dev -- --port 9000`.
 
 The server prints a URL containing a generated token:
 

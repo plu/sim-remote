@@ -1,2 +1,5 @@
 [tools]
 node = "26.8.1"
+# idb_companion is the daemon that drives the simulator. Installed from the
+# project's own release rather than a brew tap, so setup is reproducible.
+"github:facebook/idb" = { version = "1.5.7", exe = "idb_companion" }
