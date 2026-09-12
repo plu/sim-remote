@@ -204,6 +204,9 @@ test('a streamed drag through the websocket scrolls a real list', async () => {
   // Launch Settings by bundle id rather than tapping its icon. Tapping is what
   // this suite exists to prove elsewhere; using it as *setup* made the test
   // depend on icon position and launch timing, which is where it kept failing.
+  // Terminate first: iOS restores an app where it was left, and Settings
+  // resuming into search mode has no top-level rows to scroll.
+  await ax.terminateApp('com.apple.Preferences');
   await ax.launchApp('com.apple.Preferences');
   const before = await waitForTree(
     (t) => t.includes('"AXLabel":"General"') || t.includes('"AXLabel":"Wi-Fi"')
@@ -231,17 +234,29 @@ test('typed text arrives as the right characters, not ASCII-as-usage-codes', asy
   ax ??= await connectAx();
   const { screen } = await ax.describe();
 
-  // Open Spotlight: swipe down from the middle of the home screen.
   await goHome(c);
   const x = Math.round(screen.width / 2);
   const y0 = Math.round(screen.height * 0.35);
-  c.send({ type: 'touch', phase: 'down', x, y: y0 });
-  for (let i = 1; i <= 20; i++) {
-    c.send({ type: 'touch', phase: 'move', x, y: y0 + i * 12 });
-    await sleep(12);
+  const spotlightOpen = (t: string) => t.includes('Suggestions') || t.includes('Search in Apps');
+
+  // A swipe is occasionally swallowed mid-animation, so retry rather than
+  // failing the whole run over one lost gesture.
+  let opened = false;
+  for (let attempt = 1; attempt <= 3 && !opened; attempt++) {
+    c.send({ type: 'touch', phase: 'down', x, y: y0 });
+    for (let i = 1; i <= 20; i++) {
+      c.send({ type: 'touch', phase: 'move', x, y: y0 + i * 12 });
+      await sleep(12);
+    }
+    c.send({ type: 'touch', phase: 'up', x, y: y0 + 240 });
+    try {
+      await waitForTree(spotlightOpen, `Spotlight (attempt ${attempt})`, 15_000);
+      opened = true;
+    } catch {
+      await goHome(c);
+    }
   }
-  c.send({ type: 'touch', phase: 'up', x, y: y0 + 240 });
-  await waitForTree((t) => t.includes('Suggestions') || t.includes('Search in Apps'), 'Spotlight');
+  expect(opened).toBe(true);
 
   const typed = 'Hi?';
   for (const ch of typed) { c.send({ type: 'text', text: ch }); await sleep(250); }

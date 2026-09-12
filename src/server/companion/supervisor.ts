@@ -7,6 +7,10 @@ interface Entry { proc: ChildProcess; socket: string; ready: Promise<string> }
 
 const SOCK_DIR = join(tmpdir(), 'sim-remote');
 
+/** Cold start on a loaded or virtualised machine is much slower than on a
+ *  warm laptop; 20s was not enough on CI. */
+const SPAWN_TIMEOUT_MS = 60_000;
+
 /** Spawns and supervises one idb_companion per simulator. */
 export class CompanionSupervisor {
   #entries = new Map<string, Entry>();
@@ -36,9 +40,11 @@ export class CompanionSupervisor {
       const started = Date.now();
       const poll = setInterval(() => {
         if (existsSync(socket)) { clearInterval(poll); resolve(socket); }
-        else if (Date.now() - started > 20_000) {
+        else if (Date.now() - started > SPAWN_TIMEOUT_MS) {
           clearInterval(poll);
-          reject(new Error(`idb_companion for ${udid} did not create a socket in 20s`));
+          reject(new Error(
+            `idb_companion for ${udid} did not create a socket in ${SPAWN_TIMEOUT_MS / 1000}s`,
+          ));
         }
       }, 100);
       proc.on('error', (e) => {
